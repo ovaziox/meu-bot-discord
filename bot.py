@@ -19,7 +19,7 @@ async def on_ready():
 
 # Função para carregar todas as Cogs
 async def load_extensions():
-    initial_extensions = ["cogs.moderation", "cogs.test", "cogs.ticket", "cogs.clear", "cogs.say"]  # Lista de Cogs
+    initial_extensions = ["cogs.moderation", "cogs.test", "cogs.ticket", "cogs.clear", "cogs.say", "cogs.canal"]  # Lista de Cogs
     for extension in initial_extensions:
         try:
             await bot.load_extension(extension)
