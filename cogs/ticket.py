@@ -75,17 +75,26 @@ class ConfirmCloseView(ui.View):
 
     @ui.button(label="✅ Confirmar", style=discord.ButtonStyle.red)
     async def confirm(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.defer()  # Defer para evitar erro "Interação falhou"
+
         transcript = await self.create_transcript(self.channel)
+        
+        if not os.path.exists("transcripts"):
+            os.makedirs("transcripts")
+
         with open(f"transcripts/{self.channel.name}.txt", "w", encoding="utf-8") as f:
             f.write(transcript)
+
         await self.channel.delete()
-        await interaction.response.send_message("✅ Ticket fechado e salvo!", ephemeral=True)
+
+        await interaction.followup.send("✅ Ticket fechado e salvo!", ephemeral=True)  # Usa followup para responder corretamente
 
     async def create_transcript(self, channel):
         transcript = ""
         async for message in channel.history(limit=None):
             transcript += f"{message.author.name}: {message.content}\n"
         return transcript
+
 
 
 class TicketCog(commands.Cog):
