@@ -15,16 +15,16 @@ class TicketButton(ui.View):
         guild = interaction.guild
         user = interaction.user
         channel_name = f"ticket-{user.name.lower().replace(' ', '-')}"
-
+        
+        # Verifica se o usuário já tem um ticket aberto
         existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
         if existing_channel:
             await interaction.response.send_message("❌ Você já tem um ticket aberto!", ephemeral=True)
             return
+        
+        # Envia o menu de seleção com os motivos
+        select_menu = TicketReasonSelect(self.bot, user, interaction)
 
-        # Criando o menu de seleção (dropdown)
-        select_menu = TicketReasonSelect(self.bot, user)
-
-        # Envia o menu de seleção antes de abrir o ticket
         await interaction.response.send_message(
             "Escolha o motivo pelo qual você está abrindo o ticket:",
             view=select_menu,
@@ -34,7 +34,7 @@ class TicketButton(ui.View):
 
 class TicketReasonSelect(ui.Select):
     """Menu de seleção com motivos para abrir um ticket"""
-    def __init__(self, bot, user):
+    def __init__(self, bot, user, interaction):
         options = [
             discord.SelectOption(label="Suporte", description="Para problemas com serviços ou funcionalidades", emoji="💬"),
             discord.SelectOption(label="Parceria", description="Para discutir parcerias", emoji="🤝"),
@@ -44,6 +44,7 @@ class TicketReasonSelect(ui.Select):
         super().__init__(placeholder="Escolha o motivo do ticket...", min_values=1, max_values=1, options=options)
         self.bot = bot
         self.user = user
+        self.interaction = interaction
 
     async def callback(self, interaction: discord.Interaction):
         guild = interaction.guild
@@ -57,12 +58,14 @@ class TicketReasonSelect(ui.Select):
 
         # Nome do canal com base no usuário
         channel_name = f"ticket-{self.user.name.lower().replace(' ', '-')}"
-
+        
+        # Verifica se já existe um ticket aberto
         existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
         if existing_channel:
             await interaction.response.send_message("❌ Você já tem um ticket aberto!", ephemeral=True)
             return
 
+        # Definindo permissões para o canal de ticket
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
             self.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
@@ -70,10 +73,12 @@ class TicketReasonSelect(ui.Select):
                 discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
         }
 
+        # Criar a categoria de "Tickets" se não existir
         category = discord.utils.get(guild.categories, name="Tickets")
         if not category:
             category = await guild.create_category("Tickets")
 
+        # Cria o canal de texto para o ticket
         ticket_channel = await guild.create_text_channel(channel_name, category=category, overwrites=overwrites)
         
         # Envia uma mensagem com o motivo do ticket, agora com emoji e descrição
@@ -99,8 +104,6 @@ class CloseTicketButton(ui.View):
 
         confirm_view = ConfirmCloseView(self.bot, self.ticket_channel)
         await interaction.followup.send("⚠️ Tem certeza que deseja fechar este ticket?", view=confirm_view, ephemeral=True)
-
-
 
 
 class ConfirmCloseView(ui.View):
@@ -133,11 +136,9 @@ class ConfirmCloseView(ui.View):
         return transcript
 
 
-
 class TicketCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        
         
     @commands.command(name="painel_ticket")
     @commands.has_permissions(administrator=True)
