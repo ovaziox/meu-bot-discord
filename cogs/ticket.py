@@ -15,13 +15,13 @@ class TicketButton(ui.View):
         guild = interaction.guild
         user = interaction.user
         channel_name = f"ticket-{user.name.lower().replace(' ', '-')}"
-        
+
         # Verifica se o usuário já tem um ticket aberto
         existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
         if existing_channel:
             await interaction.response.send_message("❌ Você já tem um ticket aberto!", ephemeral=True)
             return
-        
+
         # Envia o menu de seleção com os motivos
         select_menu = TicketReasonSelect(self.bot, user, interaction)
 
@@ -58,7 +58,7 @@ class TicketReasonSelect(ui.Select):
 
         # Nome do canal com base no usuário
         channel_name = f"ticket-{self.user.name.lower().replace(' ', '-')}"
-        
+
         # Verifica se já existe um ticket aberto
         existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
         if existing_channel:
@@ -117,23 +117,10 @@ class ConfirmCloseView(ui.View):
     async def confirm(self, interaction: discord.Interaction, button: ui.Button):
         await interaction.response.defer()
 
-        transcript = await self.create_transcript(self.ticket_channel)
-        
-        if not os.path.exists("transcripts"):
-            os.makedirs("transcripts")
-
-        with open(f"transcripts/{self.ticket_channel.name}.txt", "w", encoding="utf-8") as f:
-            f.write(transcript)
-
+        # Deleta o canal de ticket sem criar transcript
         await self.ticket_channel.delete()
 
-        await interaction.followup.send("✅ Ticket fechado e salvo!", ephemeral=True)
-
-    async def create_transcript(self, channel):
-        transcript = ""
-        async for message in channel.history(limit=None):
-            transcript += f"{message.author.name}: {message.content}\n"
-        return transcript
+        await interaction.followup.send("✅ Ticket fechado!", ephemeral=True)
 
 
 class TicketCog(commands.Cog):
