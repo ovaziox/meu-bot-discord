@@ -53,12 +53,16 @@ class CloseTicketButton(ui.View):
 
     @ui.button(label="🔒 Fechar Ticket", style=discord.ButtonStyle.red, custom_id="close_ticket")
     async def close_ticket(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.defer()  # Evita erro "Esta interação falhou"
+    
         user = interaction.user
         guild = interaction.guild
         channel = interaction.channel
         
         confirm_view = ConfirmCloseView(self.bot, self.open_tickets, channel)
-        await interaction.response.send_message("⚠️ Tem certeza que deseja fechar este ticket?", view=confirm_view, ephemeral=True)
+        await interaction.followup.send("⚠️ Tem certeza que deseja fechar este ticket?", view=confirm_view, ephemeral=True)
+
+
 
 
 class ConfirmCloseView(ui.View):
