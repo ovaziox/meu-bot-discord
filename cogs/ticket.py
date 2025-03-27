@@ -42,6 +42,7 @@ class TicketReasonSelect(ui.Select):
         options = [
             discord.SelectOption(label="Suporte", description="Ajuda com problemas técnicos", emoji="🛠️"),
             discord.SelectOption(label="Parceria", description="Solicitação de parceria", emoji="🤝"),
+            discord.SelectOption(label="Patrocínio", description="Para negociar patrocínios", emoji="💰"),
             discord.SelectOption(label="Denúncia", description="Reportar comportamento inadequado", emoji="⚠️"),
         ]
         super().__init__(placeholder="Escolha o motivo do ticket...", options=options)
