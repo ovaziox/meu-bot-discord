@@ -1,4 +1,4 @@
-# Arquivo para armazenar configurações do bot
+import os
 
-TOKEN = "MTM1NDU3ODc1MDU4NjQ5MTIyNQ.G6vOpZ.KHRSt0tVxkHxX22Idp3hsZf22EU3Ey3UYBjAG8"  # Substitua pelo token do seu bot
+TOKEN = os.getenv("DISCORD_TOKEN")
 PREFIX = "#"  # Prefixo dos comandos
