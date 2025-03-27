@@ -4,129 +4,96 @@ from discord import ui
 import os
 
 class TicketButton(ui.View):
-    """Cria um botão para abrir e fechar tickets"""
-
+    """Cria um botão para abrir tickets"""
     def __init__(self, bot):
         super().__init__(timeout=None)
         self.bot = bot
-        self.open_tickets = {}  # Dicionário para armazenar tickets criados
+        self.open_tickets = {}
 
-    @ui.button(label="Abrir Ticket", style=discord.ButtonStyle.green, custom_id="open_ticket")
+    @ui.button(label="📩 Abrir Ticket", style=discord.ButtonStyle.green, custom_id="open_ticket")
     async def open_ticket(self, interaction: discord.Interaction, button: ui.Button):
-        """Ação ao clicar no botão para abrir um ticket"""
         guild = interaction.guild
         user = interaction.user
-
-        # Nome do canal baseado no usuário
         channel_name = f"ticket-{user.name.lower().replace(' ', '-')}"
         
-        # Verifica se já existe um canal de ticket para esse usuário
         existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
         if existing_channel:
             await interaction.response.send_message("❌ Você já tem um ticket aberto!", ephemeral=True)
             return
-        
-        # Criar um novo canal de texto visível apenas para ADMINS e o usuário que abriu
+
         overwrites = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=False),  # Todos não podem ver
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
             user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
             discord.utils.get(guild.roles, permissions=discord.Permissions(administrator=True)): 
                 discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
         }
 
-        # Criando o canal na categoria "Tickets"
         category = discord.utils.get(guild.categories, name="Tickets")
         if not category:
-            category = await guild.create_category("Tickets")  # Cria se não existir
+            category = await guild.create_category("Tickets")
 
         ticket_channel = await guild.create_text_channel(channel_name, category=category, overwrites=overwrites)
-
-        # Armazena o ticket no dicionário (mapeando usuário -> canal)
         self.open_tickets[user.id] = ticket_channel.id
 
-        # Envia mensagem de boas-vindas ao ticket
-        await ticket_channel.send(f"🎟️ **Ticket criado por {user.mention}**.\n\nUm administrador responderá em breve!")
-
-        # Adiciona o botão de fechar no canal de ticket
-        close_button = CloseTicketButton(self.bot, self.open_tickets)
-        await ticket_channel.send("🔒 **Clique no botão abaixo para fechar seu ticket quando o problema for resolvido.**", view=close_button)
-
-        # Resposta ao usuário
+        embed = discord.Embed(
+            title="🎟️ Ticket Criado",
+            description=f"Olá {user.mention}, um membro da equipe irá atendê-lo em breve!\n\n🔒 Clique abaixo para fechar este ticket quando o problema for resolvido.",
+            color=discord.Color.blue()
+        )
+        await ticket_channel.send(embed=embed, view=CloseTicketButton(self.bot, self.open_tickets))
         await interaction.response.send_message(f"✅ Seu ticket foi criado: {ticket_channel.mention}", ephemeral=True)
 
 
 class CloseTicketButton(ui.View):
-    """Cria um botão para fechar tickets"""
-
+    """Cria um botão para fechar tickets com confirmação"""
     def __init__(self, bot, open_tickets):
         super().__init__(timeout=None)
         self.bot = bot
-        self.open_tickets = open_tickets  # Passa o dicionário de tickets abertos
+        self.open_tickets = open_tickets
 
-    @ui.button(label="Fechar Ticket", style=discord.ButtonStyle.red, custom_id="close_ticket")
+    @ui.button(label="🔒 Fechar Ticket", style=discord.ButtonStyle.red, custom_id="close_ticket")
     async def close_ticket(self, interaction: discord.Interaction, button: ui.Button):
-        """Ação ao clicar no botão para fechar um ticket"""
         user = interaction.user
         guild = interaction.guild
-
-        # Verifica se o usuário tem um ticket aberto
-        if user.id not in self.open_tickets:
-            await interaction.response.send_message("❌ Você não tem um ticket aberto!", ephemeral=True)
-            return
+        channel = interaction.channel
         
-        # Pega o ID do canal que deve ser fechado
-        channel_id = self.open_tickets[user.id]
-        ticket_channel = guild.get_channel(channel_id)
+        confirm_view = ConfirmCloseView(self.bot, self.open_tickets, channel)
+        await interaction.response.send_message("⚠️ Tem certeza que deseja fechar este ticket?", view=confirm_view, ephemeral=True)
 
-        if ticket_channel is None:
-            await interaction.response.send_message("❌ O ticket já foi fechado ou não existe!", ephemeral=True)
-            return
 
-        # Verifica se quem está fechando é o dono do ticket ou um administrador
-        if interaction.user.id != user.id and not any(role.permissions.administrator for role in interaction.user.roles):
-            await interaction.response.send_message("❌ Apenas quem abriu o ticket ou um administrador pode fechá-lo!", ephemeral=True)
-            return
+class ConfirmCloseView(ui.View):
+    """Confirmação para fechar o ticket"""
+    def __init__(self, bot, open_tickets, channel):
+        super().__init__(timeout=30)
+        self.bot = bot
+        self.open_tickets = open_tickets
+        self.channel = channel
 
-        # Cria o transcrito
-        transcript = await self.create_transcript(ticket_channel)
-
-        # Salva o transcrito em um arquivo
-        if not os.path.exists("transcripts"):
-            os.makedirs("transcripts")
-
-        with open(f"transcripts/{ticket_channel.name}.txt", "w", encoding="utf-8") as f:
+    @ui.button(label="✅ Confirmar", style=discord.ButtonStyle.red)
+    async def confirm(self, interaction: discord.Interaction, button: ui.Button):
+        transcript = await self.create_transcript(self.channel)
+        with open(f"transcripts/{self.channel.name}.txt", "w", encoding="utf-8") as f:
             f.write(transcript)
-
-        # Deleta o canal
-        await ticket_channel.delete()
-
-        # Remove o ticket do dicionário
-        del self.open_tickets[user.id]
-
-        # Notifica o usuário
-        await interaction.response.send_message(f"✅ O ticket foi fechado e transcrito! O transcrito foi salvo como `{ticket_channel.name}.txt`.", ephemeral=True)
+        await self.channel.delete()
+        await interaction.response.send_message("✅ Ticket fechado e salvo!", ephemeral=True)
 
     async def create_transcript(self, channel):
-        """Cria o transcrito do canal de texto"""
         transcript = ""
-        async for message in channel.history(limit=None):  # Pega todas as mensagens do canal
+        async for message in channel.history(limit=None):
             transcript += f"{message.author.name}: {message.content}\n"
         return transcript
 
 
 class TicketCog(commands.Cog):
-    """Sistema de Tickets"""
-    
     def __init__(self, bot):
         self.bot = bot
-        self.open_tickets = {}  # Dicionário para armazenar tickets criados
+        self.open_tickets = {}
 
     @commands.command(name="painel_ticket")
     @commands.has_permissions(administrator=True)
     async def painel_ticket(self, ctx):
-        """Envia o painel para abrir tickets"""
         embed = discord.Embed(
-            title="📩 Suporte via Ticket",
+            title="📩 Sistema de Tickets",
             description="Clique no botão abaixo para abrir um ticket com a equipe!",
             color=discord.Color.green()
         )
