@@ -10,16 +10,26 @@ class TicketSystem(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def painel_ticket(self, ctx):
         embed = discord.Embed(
-            title="📩 Sistema de Tickets",
-            description="Selecione um motivo abaixo e clique no botão para abrir um ticket!",
+            title="\U0001F4E9 Sistema de Tickets",
+            description="Clique no botão abaixo para abrir um ticket! Você poderá escolher o motivo depois.",
             color=discord.Color.green()
         )
-        await ctx.send(embed=embed, view=TicketMenu(self.bot))
+        await ctx.send(embed=embed, view=TicketButton(self.bot))
 
-class TicketMenu(ui.View):
+class TicketButton(ui.View):
     def __init__(self, bot):
         super().__init__(timeout=None)
         self.bot = bot
+
+    @ui.button(label="\U0001F4E9 Abrir Ticket", style=discord.ButtonStyle.green)
+    async def open_ticket(self, interaction: discord.Interaction, button: ui.Button):
+        await interaction.response.send_message(view=TicketMenu(self.bot, interaction.user), ephemeral=True)
+
+class TicketMenu(ui.View):
+    def __init__(self, bot, user):
+        super().__init__(timeout=None)
+        self.bot = bot
+        self.user = user
         self.reason = None
 
     @ui.select(
@@ -27,29 +37,25 @@ class TicketMenu(ui.View):
         min_values=1,
         max_values=1,
         options=[
-            discord.SelectOption(label="Suporte", emoji="💬"),
-            discord.SelectOption(label="Parceria", emoji="🤝"),
-            discord.SelectOption(label="Patrocínio", emoji="💰"),
+            discord.SelectOption(label="Suporte", emoji="\U0001F4AC"),
+            discord.SelectOption(label="Parceria", emoji="\U0001F91D"),
+            discord.SelectOption(label="Patrocínio", emoji="\U0001F4B0"),
             discord.SelectOption(label="Denúncia", emoji="⚠️"),
         ]
     )
     async def select_callback(self, interaction: discord.Interaction, select: ui.Select):
         self.reason = select.values[0]
         await interaction.response.defer()
+        await self.create_ticket(interaction)
 
-    @ui.button(label="📩 Abrir Ticket", style=discord.ButtonStyle.green)
-    async def open_ticket(self, interaction: discord.Interaction, button: ui.Button):
-        if not self.reason:
-            await interaction.response.send_message("❌ Escolha um motivo antes de abrir o ticket!", ephemeral=True)
-            return
-
+    async def create_ticket(self, interaction):
         guild = interaction.guild
-        user = interaction.user
+        user = self.user
         channel_name = f"ticket-{user.name.lower().replace(' ', '-')}"
         existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
 
         if existing_channel:
-            await interaction.response.send_message("❌ Você já tem um ticket aberto!", ephemeral=True)
+            await interaction.followup.send("❌ Você já tem um ticket aberto!", ephemeral=True)
             return
 
         category = discord.utils.get(guild.categories, name="Tickets")
@@ -65,7 +71,7 @@ class TicketMenu(ui.View):
 
         ticket_channel = await guild.create_text_channel(channel_name, category=category, overwrites=overwrites)
         embed = discord.Embed(
-            title="🎟️ Ticket Criado",
+            title="\U0001F3AB Ticket Criado",
             description=f"Olá {user.mention}, você escolheu: **{self.reason}**\n\nUm membro da equipe irá atendê-lo em breve!",
             color=discord.Color.blue()
         )
