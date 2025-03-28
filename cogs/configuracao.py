@@ -5,10 +5,12 @@ from discord.ui import View, Select, Button
 class BotConfig(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        print("BotConfig extension carregada com sucesso!")
 
     @commands.command(name="configuracao")
     @commands.has_permissions(administrator=True)  # Apenas administradores podem usar
     async def configuracao(self, ctx):
+        print("Comando configuracao foi chamado")  # Verificação de comando chamado
         """Comando para configurar o bot no servidor."""
 
         # Criação do Embed para o painel de configuração
@@ -54,4 +56,5 @@ class BotConfig(commands.Cog):
 
 
 async def setup(bot):
+    print("Carregando BotConfig...")
     await bot.add_cog(BotConfig(bot))
