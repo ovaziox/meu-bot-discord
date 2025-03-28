@@ -5,7 +5,7 @@ class LumeBot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="say")
+    @commands.command(name="say_custom")
     @commands.has_permissions(manage_messages=True)  # Permite apenas quem pode gerenciar mensagens
     async def say(self, ctx, title: str, color: str, *, message: str):
         """Comando para enviar uma mensagem formatada com embed."""

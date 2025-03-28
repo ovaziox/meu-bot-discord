@@ -1,9 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import os  # Para pegar a variável de ambiente do token
+import os
 
-# Configuração do bot usando o comando prefixo padrão
+# Configuração do bot
 intents = discord.Intents.default()
 intents.messages = True
 intents.guilds = True
@@ -14,8 +14,8 @@ class BotConfig(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # Comando Slash configurado
     @app_commands.command(name="configuração", description="Configurações do bot")
+    @commands.has_permissions(administrator=True)
     async def configuração(self, interaction: discord.Interaction):
         """Comando para configurar o bot em seu servidor."""
         embed = discord.Embed(
@@ -57,7 +57,7 @@ class BotConfig(commands.Cog):
         await interaction.response.send_message(embed=embed, view=view)
 
 
-# Registra o comando slash
+# Evento para o bot inicializar e sincronizar os comandos
 @bot.event
 async def on_ready():
     print(f'{bot.user} está online e pronto!')
@@ -65,7 +65,7 @@ async def on_ready():
     # Sincroniza os comandos com o servidor
     await bot.tree.sync()
 
-# Adiciona a cog de configurações
+# Registra o comando
 async def setup(bot):
     await bot.add_cog(BotConfig(bot))
 
