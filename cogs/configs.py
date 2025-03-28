@@ -6,7 +6,7 @@ class BotConfig(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.slash_command(name="configuração", description="Configurações do bot")
+    @commands.command(name="configuração")
     @commands.has_permissions(administrator=True)
     async def configuração(self, ctx):
         """Comando para configurar o bot em seu servidor."""

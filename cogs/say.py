@@ -16,15 +16,24 @@ class LumeBot(commands.Cog):
             return
 
         try:
+            # Tenta converter a cor hexadecimal para inteiro
+            embed_color = int(color[1:], 16)
+        except ValueError:
+            await ctx.send("A cor fornecida não é válida. Certifique-se de usar o formato hexadecimal correto (#RRGGBB).", delete_after=5)
+            return
+
+        try:
             # Cria o embed com a mensagem formatada
             embed = discord.Embed(
                 title=title,
                 description=message,
-                color=int(color[1:], 16)  # Converte o valor hexadecimal para um inteiro
+                color=embed_color  # Usa a cor convertida
             )
 
-            # Adiciona o footer com o ícone do servidor
-            embed.set_footer(text="Copyright 2025", icon_url=ctx.guild.icon.url)
+            # Verifica se o servidor tem um ícone, senão usa um ícone genérico
+            footer_icon = ctx.guild.icon.url if ctx.guild.icon else None
+            embed.set_footer(text="Todos os direitos reservados | LumeCraft © 2025", icon_url=footer_icon)
+
 
             # Envia a mensagem com o embed
             await ctx.send(embed=embed)
