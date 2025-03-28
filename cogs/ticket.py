@@ -10,57 +10,44 @@ class TicketSystem(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def painel_ticket(self, ctx):
         embed = discord.Embed(
-            title="\U0001F4E9 Sistema de Tickets",
-            description="Clique no botão abaixo para abrir um ticket! Você poderá escolher o motivo depois.",
+            title="📩 Sistema de Tickets",
+            description="Selecione um motivo abaixo e clique no botão para abrir um ticket!",
             color=discord.Color.green()
         )
-        await ctx.send(embed=embed, view=TicketButton(self.bot))
+        await ctx.send(content="||@everyone||", embed=embed, view=TicketMenu(self.bot))  # Menciona everyone
 
-class TicketButton(ui.View):
+class TicketMenu(ui.View):
     def __init__(self, bot):
         super().__init__(timeout=None)
         self.bot = bot
 
-    @ui.button(label="\U0001F4E9 Abrir Ticket", style=discord.ButtonStyle.green)
+    @ui.button(label="📩 Abrir Ticket", style=discord.ButtonStyle.green)
     async def open_ticket(self, interaction: discord.Interaction, button: ui.Button):
-        await interaction.response.send_message(view=TicketMenu(self.bot, interaction.user), ephemeral=True)
+        modal = TicketReasonModal(self.bot)
+        await interaction.response.send_modal(modal)
 
-class TicketMenu(ui.View):
-    def __init__(self, bot, user):
-        super().__init__(timeout=None)
+class TicketReasonModal(ui.Modal, title="Motivo do Ticket"):
+    motivo = ui.TextInput(label="Informe o motivo do ticket", placeholder="Exemplo: Preciso de suporte técnico.")
+
+    def __init__(self, bot):
+        super().__init__()
         self.bot = bot
-        self.user = user
-        self.reason = None
 
-    @ui.select(
-        placeholder="Escolha o motivo do ticket...",
-        min_values=1,
-        max_values=1,
-        options=[
-            discord.SelectOption(label="Suporte", emoji="\U0001F4AC"),
-            discord.SelectOption(label="Parceria", emoji="\U0001F91D"),
-            discord.SelectOption(label="Patrocínio", emoji="\U0001F4B0"),
-            discord.SelectOption(label="Denúncia", emoji="⚠️"),
-        ]
-    )
-    async def select_callback(self, interaction: discord.Interaction, select: ui.Select):
-        self.reason = select.values[0]
-        await interaction.response.defer()
-        await self.create_ticket(interaction)
-
-    async def create_ticket(self, interaction):
+    async def on_submit(self, interaction: discord.Interaction):
         guild = interaction.guild
-        user = self.user
-        channel_name = f"ticket-{user.name.lower().replace(' ', '-')}"
-        existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
-
-        if existing_channel:
-            await interaction.followup.send("❌ Você já tem um ticket aberto!", ephemeral=True)
-            return
+        user = interaction.user
+        reason = self.motivo.value
 
         category = discord.utils.get(guild.categories, name="Tickets")
         if not category:
             category = await guild.create_category("Tickets")
+
+        channel_name = f"ticket-{user.name.lower().replace(' ', '-')}"
+        existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
+
+        if existing_channel:
+            await interaction.response.send_message("❌ Você já tem um ticket aberto!", ephemeral=True)
+            return
 
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
@@ -71,12 +58,12 @@ class TicketMenu(ui.View):
 
         ticket_channel = await guild.create_text_channel(channel_name, category=category, overwrites=overwrites)
         embed = discord.Embed(
-            title="\U0001F3AB Ticket Criado",
-            description=f"Olá {user.mention}, você escolheu: **{self.reason}**\n\nUm membro da equipe irá atendê-lo em breve!",
+            title="🎟️ Ticket Criado",
+            description=f"Olá {user.mention}, você escolheu: **{reason}**\n\nAguarde um membro da equipe!",
             color=discord.Color.blue()
         )
         await ticket_channel.send(embed=embed, view=CloseTicketButton(self.bot, ticket_channel, user))
-        await interaction.followup.send(f"✅ Seu ticket foi criado: {ticket_channel.mention}", ephemeral=True)
+        await interaction.response.send_message(f"✅ Seu ticket foi criado: {ticket_channel.mention}", ephemeral=True)
 
 class CloseTicketButton(ui.View):
     def __init__(self, bot, ticket_channel, user):
