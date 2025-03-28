@@ -7,10 +7,9 @@ class BotConfig(commands.Cog):
         self.bot = bot
         print("BotConfig extension carregada com sucesso!")
 
-    @commands.command(name="configuracao")
-    @commands.has_permissions(administrator=True)  # Apenas administradores podem usar
-    async def configuracao(self, ctx):
-        print("Comando configuracao foi chamado")  # Verificação de comando chamado
+    @commands.command(name="test")
+    async def test(self, ctx):
+        await ctx.send("O comando test está funcionando!")
         """Comando para configurar o bot no servidor."""
 
         # Criação do Embed para o painel de configuração
