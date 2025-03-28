@@ -1,59 +1,49 @@
 import discord
 from discord.ext import commands
-from discord.ui import View, Select, Button
 
 class BotConfig(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        print("BotConfig extension carregada com sucesso!")
 
-    @commands.command(name="test")
-    async def test(self, ctx):
-        await ctx.send("O comando test está funcionando!")
-        """Comando para configurar o bot no servidor."""
-
-        # Criação do Embed para o painel de configuração
+    @commands.command(name="configuracao")
+    @commands.has_permissions(administrator=True)
+    async def configuracao(self, ctx):
+        """Comando básico para configurar o canal onde o bot pode responder."""
+        
+        # Envia um embed com a descrição da configuração
         embed = discord.Embed(
             title="🛠️ Configuração do Bot",
-            description="Escolha uma das opções abaixo para configurar o bot:",
+            description="Escolha um canal onde o bot responderá aos comandos.",
             color=discord.Color.green()
         )
         embed.add_field(
-            name="Configuração do Canal",
-            value="Selecione o canal onde o bot pode responder aos comandos.",
+            name="Como configurar?",
+            value="Digite o nome do canal onde deseja que o bot responda.",
             inline=False
         )
+        
+        # Envia a mensagem para o usuário
+        await ctx.send(embed=embed)
 
-        # Criação de uma lista de opções de canais do servidor
-        channel_select = Select(
-            placeholder="Escolha o canal para comandos do bot...",
-            options=[discord.SelectOption(label=channel.name, value=str(channel.id)) for channel in ctx.guild.text_channels]
-        )
+        # Aguardando a resposta do usuário
+        def check(message):
+            return message.author == ctx.author and message.channel == ctx.channel
 
-        # Botão para salvar a configuração
-        save_button = Button(label="Salvar Configuração", style=discord.ButtonStyle.green)
+        try:
+            # Espera a resposta do usuário (nome do canal)
+            msg = await self.bot.wait_for('message', check=check, timeout=60)
+            channel_name = msg.content.strip()
 
-        # Criando uma View com o Select e o Botão
-        view = View()
-        view.add_item(channel_select)
-        view.add_item(save_button)
+            # Tenta pegar o canal pelo nome
+            channel = discord.utils.get(ctx.guild.text_channels, name=channel_name)
 
-        # Enviar a mensagem com o painel configurável
-        await ctx.send(embed=embed, view=view)
+            if channel:
+                await ctx.send(f"✅ Canal configurado com sucesso! O bot agora responderá apenas no canal {channel.mention}.")
+            else:
+                await ctx.send("❌ Canal não encontrado. Certifique-se de digitar o nome corretamente.")
+        except Exception as e:
+            await ctx.send("❌ Não foi possível configurar o canal. Tente novamente.")
 
-        # Função de callback para o botão "Salvar"
-        async def save_callback(interaction):
-            channel_id = channel_select.values[0]
-            selected_channel = ctx.guild.get_channel(int(channel_id))
-
-            # Salvar a configuração no banco de dados ou arquivo de configuração
-            # Por enquanto, enviaremos um feedback sobre a escolha
-            await interaction.response.send_message(f"✅ Canal configurado com sucesso! O bot agora responderá apenas no canal: {selected_channel.mention}")
-
-        # Definir o callback para o botão de salvar
-        save_button.callback = save_callback
-
-
+# Função para adicionar o Cog
 async def setup(bot):
-    print("Carregando BotConfig...")
     await bot.add_cog(BotConfig(bot))
