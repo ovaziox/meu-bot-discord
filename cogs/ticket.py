@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from discord import ui
+from discord import ui, app_commands
 
 class TicketSystem(commands.Cog):
     def __init__(self, bot):
@@ -8,13 +8,23 @@ class TicketSystem(commands.Cog):
 
     @commands.command(name="painel_ticket")
     @commands.has_permissions(administrator=True)
-    async def painel_ticket(self, ctx):
+    async def painel_ticket_prefix(self, ctx):
+        await self.send_ticket_panel(ctx.channel)
+
+    @app_commands.command(name="painel_ticket", description="Envia o painel de tickets")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def painel_ticket_slash(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        await self.send_ticket_panel(interaction.channel)
+        await interaction.followup.send("✅ Painel de tickets enviado!", ephemeral=True)
+
+    async def send_ticket_panel(self, channel):
         embed = discord.Embed(
             title="📩 Sistema de Tickets",
             description="Selecione um motivo abaixo e clique no botão para abrir um ticket!",
             color=discord.Color.green()
         )
-        await ctx.send(content="||@everyone||", embed=embed, view=TicketMenu(self.bot))  # Menciona everyone
+        await channel.send(content="||@everyone||", embed=embed, view=TicketMenu(self.bot))
 
 class TicketMenu(ui.View):
     def __init__(self, bot):
