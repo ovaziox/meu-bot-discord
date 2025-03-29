@@ -7,7 +7,7 @@ import asyncio
 intents = discord.Intents.default()
 intents.message_content = True  # Necessário para comandos baseados em mensagens
 intents.guilds = True  # Permite que o bot veja servidores
-intents.members = True  # Para comandos de moderação (se ativado no Developer Portal)
+intents.members = True  # Para comandos de moderação
 
 # Define o bot com o prefixo configurado no config.py
 bot = commands.Bot(command_prefix=config.PREFIX, intents=intents)
@@ -15,6 +15,8 @@ bot = commands.Bot(command_prefix=config.PREFIX, intents=intents)
 # Evento chamado quando o bot fica online
 @bot.event
 async def on_ready():
+    # Sincroniza os comandos híbridos (incluindo slash commands)
+    await bot.tree.sync()  # Registra os comandos na árvore do Discord
     print(f'✅ Bot conectado como {bot.user.name}')
 
 # Função para carregar todas as Cogs
