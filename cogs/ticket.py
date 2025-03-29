@@ -6,20 +6,18 @@ class TicketSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="panelticket")
+    @commands.hybrid_command(name="panelticket", with_app_command=True, description="Envia o painel de tickets")
     @commands.has_permissions(administrator=True)
-    async def painel_ticket_prefix(self, ctx):
+    async def painel_ticket(self, ctx):
+        # Verifica se for um comando slash ou prefixo, a lógica é a mesma
+        # Se o comando for via slash, o Discord já cuida das permissões,
+        # mas você pode adicionar checagens extras se necessário
         await self.send_ticket_panel(ctx.channel)
-
-    @app_commands.command(name="panelticket", description="Envia o painel de tickets")
-    async def painel_ticket_slash(self, interaction: discord.Interaction):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ Você não tem permissão para isso!", ephemeral=True)
-            return
-
-        await interaction.response.defer()
-        await self.send_ticket_panel(interaction.channel)
-        await interaction.followup.send("✅ Painel de tickets enviado!", ephemeral=True)
+        # Se for slash, é recomendado responder via interaction, por exemplo:
+        if isinstance(ctx, discord.Interaction):
+            await ctx.followup.send("✅ Painel de tickets enviado!", ephemeral=True)
+        else:
+            await ctx.send("✅ Painel de tickets enviado!")
 
     async def send_ticket_panel(self, channel):
         embed = discord.Embed(
@@ -28,6 +26,9 @@ class TicketSystem(commands.Cog):
             color=discord.Color.green()
         )
         await channel.send(content="||@everyone||", embed=embed, view=TicketMenu())
+
+# As demais classes (TicketMenu, TicketReasonModal e CloseTicketButton) permanecem inalteradas.
+
 
 class TicketMenu(ui.View):
     def __init__(self):
