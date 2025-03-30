@@ -17,6 +17,7 @@ class TicketReasonModal(ui.Modal, title="Descreva seu Pedido"):
         self.add_item(ui.TextInput(label="Explique o motivo do ticket", style=discord.TextStyle.paragraph))
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer()  # Garante que a resposta não expire
         await create_ticket(interaction, self.ticket_type, self.children[0].value)
 
 class CloseTicketButton(ui.Button):
@@ -44,9 +45,10 @@ class OpenTicketButton(ui.Button):
         self.ticket_type = ticket_type
 
     async def callback(self, interaction: discord.Interaction):
-        open_ticket = discord.utils.get(interaction.guild.text_channels, name=f"ticket-{interaction.user.name}")
+        await interaction.response.defer()
+        open_ticket = discord.utils.get(interaction.guild.text_channels, name=f"ticket-{interaction.user.id}")
         if open_ticket:
-            await interaction.response.send_message("❌ Você já tem um ticket aberto!", ephemeral=True)
+            await interaction.followup.send("❌ Você já tem um ticket aberto!", ephemeral=True)
             return
 
         if self.ticket_type == "Outros":
@@ -65,6 +67,7 @@ class TicketDropdown(ui.Select):
         super().__init__(placeholder="Escolha um tipo de ticket...", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         ticket_type = self.values[0]
         description = TICKET_DESCRIPTIONS.get(ticket_type, "📌 **Informações sobre o ticket não disponíveis.**")
         embed = discord.Embed(
@@ -72,7 +75,7 @@ class TicketDropdown(ui.Select):
             description=f"{description}\n\nClique no botão abaixo para abrir seu ticket!",
             color=discord.Color.blue()
         )
-        await interaction.response.send_message(embed=embed, view=TicketButton(ticket_type), ephemeral=True)
+        await interaction.followup.send(embed=embed, view=TicketButton(ticket_type), ephemeral=True)
 
 class TicketSystem(commands.Cog):
     def __init__(self, bot):
@@ -94,15 +97,16 @@ class TicketMenu(ui.View):
         self.add_item(TicketDropdown())
 
 async def create_ticket(interaction: discord.Interaction, ticket_type: str, reason: str = "N/A"):
+    await interaction.response.defer()
     guild = interaction.guild
     category = discord.utils.get(guild.categories, name="Tickets")
     if not category:
         category = await guild.create_category("Tickets")
 
     ticket_channel = await guild.create_text_channel(
-        name=f"ticket-{interaction.user.name}", category=category
+        name=f"ticket-{interaction.user.id}", category=category
     )
-
+    
     await ticket_channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
     admin_role = discord.utils.get(guild.roles, permissions=discord.Permissions(administrator=True))
     if admin_role:
@@ -113,15 +117,15 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str, reas
         description=f"Usuário: {interaction.user.mention}\nMotivo: {reason}",
         color=discord.Color.green()
     )
-
+    
     view = ui.View()
     view.add_item(CloseTicketButton(ticket_channel, interaction.user))
 
     await ticket_channel.send(embed=embed, view=view)
-    await interaction.response.send_message(f"✅ Ticket criado: {ticket_channel.mention}", ephemeral=True)
+    await interaction.followup.send(f"✅ Ticket criado: {ticket_channel.mention}", ephemeral=True)
 
 async def send_transcript(channel: discord.TextChannel, user: discord.Member):
-    messages = [msg async for msg in channel.history(limit=1000)]  # Correção aqui!
+    messages = [msg async for msg in channel.history(limit=1000)]
     messages.reverse()
     transcript = "\n".join(f"[{msg.created_at.strftime('%Y-%m-%d %H:%M:%S')}] {msg.author}: {msg.content}" for msg in messages)
     
