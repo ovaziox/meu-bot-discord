@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import ui, app_commands
+import io
 
 # Mapeamento de descrições para cada tipo de ticket
 TICKET_DESCRIPTIONS = {
@@ -26,6 +27,7 @@ class CloseTicketButton(ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.guild_permissions.manage_messages or interaction.channel.permissions_for(interaction.user).read_messages:
+            await save_transcript(self.channel)
             await self.channel.delete()
         else:
             await interaction.response.send_message("❌ Você não tem permissão para fechar este ticket!", ephemeral=True)
@@ -118,8 +120,21 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str, reas
     await ticket_channel.send(embed=embed, view=view)
     await interaction.response.send_message(f"✅ Ticket criado: {ticket_channel.mention}", ephemeral=True)
 
-
+async def save_transcript(channel: discord.TextChannel):
+    messages = await channel.history(limit=1000).flatten()
+    transcript = io.StringIO()
+    
+    for message in reversed(messages):
+        transcript.write(f"[{message.created_at.strftime('%Y-%m-%d %H:%M:%S')}] {message.author}: {message.content}\n")
+    
+    transcript.seek(0)
+    transcript_file = discord.File(transcript, filename=f"transcript-{channel.name}.txt")
+    log_channel = discord.utils.get(channel.guild.text_channels, name="logs")
+    
+    if log_channel:
+        await log_channel.send(content=f"📄 Transcript do {channel.name}", file=transcript_file)
+    
+    await channel.send(content="📄 Aqui está a transcrição do ticket:", file=transcript_file)
 
 async def setup(bot):
     await bot.add_cog(TicketSystem(bot))
-    
