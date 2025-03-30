@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import ui, app_commands
+import aiofiles
 
 # Mapeamento de descrições para cada tipo de ticket
 TICKET_DESCRIPTIONS = {
@@ -20,12 +21,14 @@ class TicketReasonModal(ui.Modal, title="Descreva seu Pedido"):
         await create_ticket(interaction, self.ticket_type, self.children[0].value)
 
 class CloseTicketButton(ui.Button):
-    def __init__(self, channel: discord.TextChannel):
+    def __init__(self, channel: discord.TextChannel, author: discord.Member):
         super().__init__(label="🔒 Fechar Ticket", style=discord.ButtonStyle.red)
         self.channel = channel
+        self.author = author
 
     async def callback(self, interaction: discord.Interaction):
-        if interaction.user.guild_permissions.manage_messages or interaction.channel.permissions_for(interaction.user).read_messages:
+        if interaction.user.guild_permissions.manage_messages or interaction.user == self.author:
+            await send_transcript(self.channel, self.author)
             await self.channel.delete()
         else:
             await interaction.response.send_message("❌ Você não tem permissão para fechar este ticket!", ephemeral=True)
@@ -113,10 +116,24 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str, reas
     )
 
     view = ui.View()
-    view.add_item(CloseTicketButton(ticket_channel))
+    view.add_item(CloseTicketButton(ticket_channel, interaction.user))
 
     await ticket_channel.send(embed=embed, view=view)
     await interaction.response.send_message(f"✅ Ticket criado: {ticket_channel.mention}", ephemeral=True)
+
+async def send_transcript(channel: discord.TextChannel, user: discord.Member):
+    messages = await channel.history(limit=1000).flatten()
+    messages.reverse()
+    transcript = "\n".join(f"[{msg.created_at.strftime('%Y-%m-%d %H:%M:%S')}] {msg.author}: {msg.content}" for msg in messages)
+    
+    async with aiofiles.open(f"{channel.name}_transcript.txt", "w", encoding="utf-8") as f:
+        await f.write(transcript)
+    
+    file = discord.File(f"{channel.name}_transcript.txt")
+    try:
+        await user.send("📜 Aqui está a transcrição do seu ticket:", file=file)
+    except:
+        print(f"Erro ao enviar transcrição para {user.name}")
 
 async def setup(bot):
     await bot.add_cog(TicketSystem(bot))
