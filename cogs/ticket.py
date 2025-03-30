@@ -3,7 +3,6 @@ from discord.ext import commands
 from discord import ui, app_commands
 import aiofiles
 
-# Mapeamento de descrições para cada tipo de ticket
 TICKET_DESCRIPTIONS = {
     "Suporte": "🛠 **Suporte** - Para dúvidas ou problemas com o servidor.",
     "Parceria": "🤝 **Parceria** - Para solicitar parceria com nosso servidor.",
@@ -122,7 +121,7 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str, reas
     await interaction.response.send_message(f"✅ Ticket criado: {ticket_channel.mention}", ephemeral=True)
 
 async def send_transcript(channel: discord.TextChannel, user: discord.Member):
-    messages = await channel.history(limit=1000).flatten()
+    messages = [msg async for msg in channel.history(limit=1000)]  # Correção aqui!
     messages.reverse()
     transcript = "\n".join(f"[{msg.created_at.strftime('%Y-%m-%d %H:%M:%S')}] {msg.author}: {msg.content}" for msg in messages)
     
