@@ -1,8 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import ui, app_commands
-import aiofiles
+import io
 
+# Mapeamento de descrições para cada tipo de ticket
 TICKET_DESCRIPTIONS = {
     "Suporte": "🛠 **Suporte** - Para dúvidas ou problemas com o servidor.",
     "Parceria": "🤝 **Parceria** - Para solicitar parceria com nosso servidor.",
@@ -17,18 +18,16 @@ class TicketReasonModal(ui.Modal, title="Descreva seu Pedido"):
         self.add_item(ui.TextInput(label="Explique o motivo do ticket", style=discord.TextStyle.paragraph))
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer()  # Garante que a resposta não expire
         await create_ticket(interaction, self.ticket_type, self.children[0].value)
 
 class CloseTicketButton(ui.Button):
-    def __init__(self, channel: discord.TextChannel, author: discord.Member):
+    def __init__(self, channel: discord.TextChannel):
         super().__init__(label="🔒 Fechar Ticket", style=discord.ButtonStyle.red)
         self.channel = channel
-        self.author = author
 
     async def callback(self, interaction: discord.Interaction):
-        if interaction.user.guild_permissions.manage_messages or interaction.user == self.author:
-            await send_transcript(self.channel, self.author)
+        if interaction.user.guild_permissions.manage_messages or interaction.channel.permissions_for(interaction.user).read_messages:
+            await save_transcript(self.channel)
             await self.channel.delete()
         else:
             await interaction.response.send_message("❌ Você não tem permissão para fechar este ticket!", ephemeral=True)
@@ -45,10 +44,9 @@ class OpenTicketButton(ui.Button):
         self.ticket_type = ticket_type
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        open_ticket = discord.utils.get(interaction.guild.text_channels, name=f"ticket-{interaction.user.id}")
+        open_ticket = discord.utils.get(interaction.guild.text_channels, name=f"ticket-{interaction.user.name}")
         if open_ticket:
-            await interaction.followup.send("❌ Você já tem um ticket aberto!", ephemeral=True)
+            await interaction.response.send_message("❌ Você já tem um ticket aberto!", ephemeral=True)
             return
 
         if self.ticket_type == "Outros":
@@ -67,7 +65,6 @@ class TicketDropdown(ui.Select):
         super().__init__(placeholder="Escolha um tipo de ticket...", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
         ticket_type = self.values[0]
         description = TICKET_DESCRIPTIONS.get(ticket_type, "📌 **Informações sobre o ticket não disponíveis.**")
         embed = discord.Embed(
@@ -75,7 +72,7 @@ class TicketDropdown(ui.Select):
             description=f"{description}\n\nClique no botão abaixo para abrir seu ticket!",
             color=discord.Color.blue()
         )
-        await interaction.followup.send(embed=embed, view=TicketButton(ticket_type), ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=TicketButton(ticket_type), ephemeral=True)
 
 class TicketSystem(commands.Cog):
     def __init__(self, bot):
@@ -97,16 +94,15 @@ class TicketMenu(ui.View):
         self.add_item(TicketDropdown())
 
 async def create_ticket(interaction: discord.Interaction, ticket_type: str, reason: str = "N/A"):
-    await interaction.response.defer()
     guild = interaction.guild
     category = discord.utils.get(guild.categories, name="Tickets")
     if not category:
         category = await guild.create_category("Tickets")
 
     ticket_channel = await guild.create_text_channel(
-        name=f"ticket-{interaction.user.id}", category=category
+        name=f"ticket-{interaction.user.name}", category=category
     )
-    
+
     await ticket_channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
     admin_role = discord.utils.get(guild.roles, permissions=discord.Permissions(administrator=True))
     if admin_role:
@@ -117,26 +113,29 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str, reas
         description=f"Usuário: {interaction.user.mention}\nMotivo: {reason}",
         color=discord.Color.green()
     )
-    
+
     view = ui.View()
-    view.add_item(CloseTicketButton(ticket_channel, interaction.user))
+    view.add_item(CloseTicketButton(ticket_channel))
 
     await ticket_channel.send(embed=embed, view=view)
-    await interaction.followup.send(f"✅ Ticket criado: {ticket_channel.mention}", ephemeral=True)
+    await interaction.response.send_message(f"✅ Ticket criado: {ticket_channel.mention}", ephemeral=True)
 
-async def send_transcript(channel: discord.TextChannel, user: discord.Member):
-    messages = [msg async for msg in channel.history(limit=1000)]
-    messages.reverse()
-    transcript = "\n".join(f"[{msg.created_at.strftime('%Y-%m-%d %H:%M:%S')}] {msg.author}: {msg.content}" for msg in messages)
+async def save_transcript(channel: discord.TextChannel):
+    messages = await channel.history(limit=1000).flatten()
+    transcript = io.StringIO()
     
-    async with aiofiles.open(f"{channel.name}_transcript.txt", "w", encoding="utf-8") as f:
-        await f.write(transcript)
+    for message in reversed(messages):
+        transcript.write(f"[{message.created_at.strftime('%Y-%m-%d %H:%M:%S')}] {message.author}: {message.content}\n")
     
-    file = discord.File(f"{channel.name}_transcript.txt")
-    try:
-        await user.send("📜 Aqui está a transcrição do seu ticket:", file=file)
-    except:
-        print(f"Erro ao enviar transcrição para {user.name}")
+    transcript.seek(0)
+    transcript_file = discord.File(transcript, filename=f"transcript-{channel.name}.txt")
+    log_channel = discord.utils.get(channel.guild.text_channels, name="logs")
+    
+    if log_channel:
+        await log_channel.send(content=f"📄 Transcript do {channel.name}", file=transcript_file)
+    
+    await channel.send(content="📄 Aqui está a transcrição do ticket:", file=transcript_file)
 
 async def setup(bot):
     await bot.add_cog(TicketSystem(bot))
+    
