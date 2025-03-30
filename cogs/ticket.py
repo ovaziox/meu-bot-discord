@@ -2,12 +2,20 @@ import discord
 from discord.ext import commands
 from discord import ui, app_commands
 
+# Mapeamento de descrições para cada tipo de ticket
+TICKET_DESCRIPTIONS = {
+    "Suporte": "🛠 **Suporte** - Para dúvidas ou problemas com o servidor.",
+    "Parceria": "🤝 **Parceria** - Para solicitar parceria com nosso servidor.",
+    "Postagem": "📩 **Postagem** - Para enviar uma sugestão de postagem.",
+    "Outros": "❓ **Outros** - Para outros tipos de solicitações."
+}
+
 class TicketReasonModal(ui.Modal, title="Descreva seu Pedido"):
     def __init__(self, ticket_type: str):
         super().__init__()
         self.ticket_type = ticket_type
         self.add_item(ui.TextInput(label="Explique o motivo do ticket", style=discord.TextStyle.paragraph))
-    
+
     async def on_submit(self, interaction: discord.Interaction):
         await create_ticket(interaction, self.ticket_type, self.children[0].value)
 
@@ -38,7 +46,7 @@ class OpenTicketButton(ui.Button):
         if open_ticket:
             await interaction.response.send_message("❌ Você já tem um ticket aberto!", ephemeral=True)
             return
-        
+
         if self.ticket_type == "Outros":
             await interaction.response.send_modal(TicketReasonModal(self.ticket_type))
         else:
@@ -53,9 +61,16 @@ class TicketDropdown(ui.Select):
             discord.SelectOption(label="Outros", description="Outro tipo de solicitação", emoji="❓"),
         ]
         super().__init__(placeholder="Escolha um tipo de ticket...", min_values=1, max_values=1, options=options)
-    
+
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(view=TicketButton(self.values[0]), ephemeral=True)
+        ticket_type = self.values[0]
+        description = TICKET_DESCRIPTIONS.get(ticket_type, "📌 **Informações sobre o ticket não disponíveis.**")
+        embed = discord.Embed(
+            title="🎫 Criar um Novo Ticket",
+            description=f"{description}\n\nClique no botão abaixo para abrir seu ticket!",
+            color=discord.Color.blue()
+        )
+        await interaction.response.send_message(embed=embed, view=TicketButton(ticket_type), ephemeral=True)
 
 class TicketSystem(commands.Cog):
     def __init__(self, bot):
@@ -81,25 +96,25 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str, reas
     category = discord.utils.get(guild.categories, name="Tickets")
     if not category:
         category = await guild.create_category("Tickets")
-    
+
     ticket_channel = await guild.create_text_channel(
         name=f"ticket-{interaction.user.name}", category=category
     )
-    
+
     await ticket_channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
     admin_role = discord.utils.get(guild.roles, permissions=discord.Permissions(administrator=True))
     if admin_role:
         await ticket_channel.set_permissions(admin_role, read_messages=True, send_messages=True)
-    
+
     embed = discord.Embed(
         title=f"🎟 Novo Ticket - {ticket_type}",
         description=f"Usuário: {interaction.user.mention}\nMotivo: {reason}",
         color=discord.Color.green()
     )
-    
+
     view = ui.View()
     view.add_item(CloseTicketButton(ticket_channel))
-    
+
     await ticket_channel.send(embed=embed, view=view)
     await interaction.response.send_message(f"✅ Ticket criado: {ticket_channel.mention}", ephemeral=True)
 
