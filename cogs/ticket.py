@@ -26,8 +26,13 @@ class CloseTicketButton(ui.Button):
         self.channel = channel
 
     async def callback(self, interaction: discord.Interaction):
+        # Verifica se o usuário tem permissão para fechar o ticket
         if interaction.user.guild_permissions.manage_messages or interaction.channel.permissions_for(interaction.user).read_messages:
+            # Responde a interação para evitar timeout
+            await interaction.response.send_message("Fechando o ticket...", ephemeral=True)
+            # Salva a transcrição (apenas em canal de logs)
             await save_transcript(self.channel)
+            # Após a transcrição, deleta o canal
             await self.channel.delete()
         else:
             await interaction.response.send_message("❌ Você não tem permissão para fechar este ticket!", ephemeral=True)
@@ -44,6 +49,7 @@ class OpenTicketButton(ui.Button):
         self.ticket_type = ticket_type
 
     async def callback(self, interaction: discord.Interaction):
+        # Verifica se o usuário já possui um ticket aberto
         open_ticket = discord.utils.get(interaction.guild.text_channels, name=f"ticket-{interaction.user.name}")
         if open_ticket:
             await interaction.response.send_message("❌ Você já tem um ticket aberto!", ephemeral=True)
@@ -74,6 +80,11 @@ class TicketDropdown(ui.Select):
         )
         await interaction.response.send_message(embed=embed, view=TicketButton(ticket_type), ephemeral=True)
 
+class TicketMenu(ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(TicketDropdown())
+
 class TicketSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -87,11 +98,6 @@ class TicketSystem(commands.Cog):
             color=discord.Color.blue()
         )
         await ctx.send(embed=embed, view=TicketMenu())
-
-class TicketMenu(ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(TicketDropdown())
 
 async def create_ticket(interaction: discord.Interaction, ticket_type: str, reason: str = "N/A"):
     guild = interaction.guild
@@ -133,8 +139,9 @@ async def save_transcript(channel: discord.TextChannel):
     
     if log_channel:
         await log_channel.send(content=f"📄 Transcript do {channel.name}", file=transcript_file)
-    
-    await channel.send(content="📄 Aqui está a transcrição do ticket:", file=transcript_file)
+    # Removido o envio de transcrição para o próprio canal, pois ele será deletado.
 
 async def setup(bot):
     await bot.add_cog(TicketSystem(bot))
+    # Sincroniza os comandos slash para garantir que o panelticket seja registrado
+    await bot.tree.sync()
