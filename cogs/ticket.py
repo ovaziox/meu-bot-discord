@@ -1,7 +1,6 @@
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 from discord import ui, app_commands
-import io
 
 # Mapeamento de descrições para cada tipo de ticket
 TICKET_DESCRIPTIONS = {
@@ -10,11 +9,6 @@ TICKET_DESCRIPTIONS = {
     "Postagem": "📩 **Postagem** - Para enviar uma sugestão de postagem.",
     "Outros": "❓ **Outros** - Para outros tipos de solicitações."
 }
-
-intents = discord.Intents.default()
-intents.message_content = True  # Permite o bot ler o conteúdo das mensagens
-
-bot = commands.Bot(command_prefix="!", intents=intents)
 
 class TicketReasonModal(ui.Modal, title="Descreva seu Pedido"):
     def __init__(self, ticket_type: str):
@@ -32,8 +26,6 @@ class CloseTicketButton(ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.guild_permissions.manage_messages or interaction.channel.permissions_for(interaction.user).read_messages:
-            await interaction.response.send_message("Fechando o ticket...", ephemeral=True)
-            await save_transcript(self.channel)
             await self.channel.delete()
         else:
             await interaction.response.send_message("❌ Você não tem permissão para fechar este ticket!", ephemeral=True)
@@ -80,11 +72,6 @@ class TicketDropdown(ui.Select):
         )
         await interaction.response.send_message(embed=embed, view=TicketButton(ticket_type), ephemeral=True)
 
-class TicketMenu(ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(TicketDropdown())
-
 class TicketSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -98,6 +85,11 @@ class TicketSystem(commands.Cog):
             color=discord.Color.blue()
         )
         await ctx.send(embed=embed, view=TicketMenu())
+
+class TicketMenu(ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(TicketDropdown())
 
 async def create_ticket(interaction: discord.Interaction, ticket_type: str, reason: str = "N/A"):
     guild = interaction.guild
@@ -126,28 +118,5 @@ async def create_ticket(interaction: discord.Interaction, ticket_type: str, reas
     await ticket_channel.send(embed=embed, view=view)
     await interaction.response.send_message(f"✅ Ticket criado: {ticket_channel.mention}", ephemeral=True)
 
-async def save_transcript(channel: discord.TextChannel):
-    messages = await channel.history(limit=1000).flatten()
-    transcript = io.StringIO()
-    
-    for message in reversed(messages):
-        transcript.write(f"[{message.created_at.strftime('%Y-%m-%d %H:%M:%S')}] {message.author}: {message.content}\n")
-    
-    transcript.seek(0)
-    transcript_file = discord.File(transcript, filename=f"transcript-{channel.name}.txt")
-    log_channel = discord.utils.get(channel.guild.text_channels, name="logs")
-    
-    if log_channel:
-        await log_channel.send(content=f"📄 Transcript do {channel.name}", file=transcript_file)
-
-@bot.event
-async def on_ready():
-    print(f"Bot {bot.user} está pronto para usar!")
-
-# Carregar o cog (sistema de tickets)
-@bot.event
-async def on_ready():
+async def setup(bot):
     await bot.add_cog(TicketSystem(bot))
-    # Registra os comandos de slash
-    await bot.tree.sync()
-
