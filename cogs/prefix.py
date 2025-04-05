@@ -9,7 +9,7 @@ PREFIXOS_PATH = "data/prefixos.json"
 class Prefix(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.bot.tree.add_command(self.configprefixo_slash)
+        
         if not os.path.exists(PREFIXOS_PATH):
             with open(PREFIXOS_PATH, "w") as f:
                 json.dump({}, f)
@@ -34,6 +34,10 @@ class Prefix(commands.Cog):
         """Slash command para alterar prefixo"""
         self.salvar_prefixo(interaction.guild.id, novo_prefixo)
         await interaction.response.send_message(f"✅ Prefixo alterado para `{novo_prefixo}`", ephemeral=True)
+
+    async def cog_load(self):
+        # Registra o slash command corretamente
+        self.bot.tree.add_command(self.configprefixo_slash)
 
 async def setup(bot):
     await bot.add_cog(Prefix(bot))
