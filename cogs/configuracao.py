@@ -1,10 +1,10 @@
 import discord
 import json
-import asyncio
+from discord import app_commands
 from discord.ext import commands
-from discord.ui import View, Select, Button
+from discord.ui import View, Select, Button, Modal, TextInput
 
-class BotConfig(commands.Cog):
+class Configuracao(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config_file = "config.json"
@@ -21,132 +21,93 @@ class BotConfig(commands.Cog):
         with open(self.config_file, "w") as f:
             json.dump(self.config, f, indent=4)
 
-    @commands.command(name="configuracao")
-    @commands.has_permissions(administrator=True)
-    async def configuracao(self, ctx):
+    @app_commands.command(name="configuracao", description="Painel de configuração do bot")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def configuracao(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="🛠️ Configuração do Bot",
-            description="Escolha uma das opções de configuração abaixo:",
+            title="🛠️ Painel de Configuração",
+            description="Escolha uma das opções abaixo para configurar o bot:",
             color=discord.Color.green()
         )
-        embed.add_field(
-            name="Opções",
-            value="🔹 Canal de comandos\n🔹 Prefixo de comandos\n🔹 Mensagem de boas-vindas",
-            inline=False
-        )
 
-        # Callback do Select
-        async def select_callback(interaction: discord.Interaction):
-            selected = select.values[0]
-            if selected == "canal_comando":
-                await self.configurar_canal(interaction)
-            elif selected == "prefixo":
-                await self.configurar_prefixo(interaction)
-            elif selected == "boas_vindas":
-                await self.configurar_boas_vindas(interaction)
-
-        # Select de opções
-        select = Select(
+        select_config = Select(
             placeholder="Escolha uma configuração...",
             options=[
-                discord.SelectOption(label="Canal de comandos", value="canal_comando"),
-                discord.SelectOption(label="Prefixo de comandos", value="prefixo"),
-                discord.SelectOption(label="Mensagem de boas-vindas", value="boas_vindas"),
+                discord.SelectOption(label="Escolher canal para comandos do bot", value="canal_comando"),
+                discord.SelectOption(label="Alterar prefixo de comandos", value="prefixo"),
             ]
         )
-        select.callback = select_callback
 
         view = View()
-        view.add_item(select)
+        view.add_item(select_config)
 
-        await ctx.send(embed=embed, view=view)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+        async def select_callback(select_interaction: discord.Interaction):
+            if select_interaction.user.id != interaction.user.id:
+                await select_interaction.response.send_message("❌ Você não pode usar esta interação.", ephemeral=True)
+                return
+
+            option = select_config.values[0]
+            if option == "canal_comando":
+                await self.configurar_canal(select_interaction)
+            elif option == "prefixo":
+                await self.configurar_prefixo(select_interaction)
+
+        select_config.callback = select_callback
 
     async def configurar_canal(self, interaction):
-        embed = discord.Embed(
-            title="📢 Escolher canal para comandos",
-            description="Selecione um canal de texto onde o bot poderá responder aos comandos.",
-            color=discord.Color.blurple()
-        )
-
-        channel_options = [
-            discord.SelectOption(label=channel.name, value=str(channel.id))
-            for channel in interaction.guild.text_channels[:25]
-        ]
-
         channel_select = Select(
-            placeholder="Selecione o canal",
-            options=channel_options
+            placeholder="Selecione o canal de comandos do bot",
+            options=[
+                discord.SelectOption(label=channel.name, value=str(channel.id))
+                for channel in interaction.guild.text_channels
+            ]
         )
-
-        async def canal_callback(interaction2: discord.Interaction):
-            canal_id = channel_select.values[0]
-            if str(interaction.guild.id) not in self.config:
-                self.config[str(interaction.guild.id)] = {}
-            self.config[str(interaction.guild.id)]["canal_id"] = int(canal_id)
-            self.save_config()
-
-            await interaction2.response.send_message(
-                f"✅ Canal configurado para <#{canal_id}> com sucesso!",
-                ephemeral=True
-            )
-
-        channel_select.callback = canal_callback
 
         view = View()
         view.add_item(channel_select)
 
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.response.send_message(
+            "🗂️ Selecione o canal que o bot usará para comandos:",
+            view=view,
+            ephemeral=True
+        )
+
+        async def select_callback(select_interaction: discord.Interaction):
+            if select_interaction.user.id != interaction.user.id:
+                await select_interaction.response.send_message("❌ Você não pode usar esta interação.", ephemeral=True)
+                return
+
+            canal_id = int(channel_select.values[0])
+            guild_id = str(interaction.guild.id)
+
+            if guild_id not in self.config:
+                self.config[guild_id] = {}
+
+            self.config[guild_id]["canal_id"] = canal_id
+            self.save_config()
+
+            canal = interaction.guild.get_channel(canal_id)
+            await select_interaction.response.send_message(f"✅ Canal configurado para {canal.mention} com sucesso!", ephemeral=True)
+
+        channel_select.callback = select_callback
 
     async def configurar_prefixo(self, interaction):
-        embed = discord.Embed(
-            title="🔤 Alterar Prefixo",
-            description="Envie o novo prefixo no chat abaixo. Você tem 30 segundos.",
-            color=discord.Color.orange()
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        class PrefixModal(Modal, title="Alterar Prefixo"):
+            novo_prefixo = TextInput(label="Novo prefixo", placeholder="Exemplo: !", max_length=5)
 
-        def check(msg):
-            return msg.author == interaction.user and msg.channel == interaction.channel
+            async def on_submit(self, modal_interaction: discord.Interaction):
+                guild_id = str(modal_interaction.guild.id)
+                if guild_id not in self.config:
+                    self.config[guild_id] = {}
 
-        try:
-            msg = await self.bot.wait_for("message", timeout=30.0, check=check)
-            new_prefix = msg.content.strip()
+                self.config[guild_id]["prefixo"] = self.novo_prefixo.value.strip()
+                self.save_config()
 
-            if str(interaction.guild.id) not in self.config:
-                self.config[str(interaction.guild.id)] = {}
+                await modal_interaction.response.send_message(f"✅ Prefixo alterado para `{self.novo_prefixo.value.strip()}` com sucesso!", ephemeral=True)
 
-            self.config[str(interaction.guild.id)]["prefixo"] = new_prefix
-            self.save_config()
+        await interaction.response.send_modal(PrefixModal())
 
-            await interaction.followup.send(f"✅ Prefixo atualizado para: `{new_prefix}`", ephemeral=True)
-        except asyncio.TimeoutError:
-            await interaction.followup.send("⏰ Tempo esgotado! Tente novamente.", ephemeral=True)
-
-    async def configurar_boas_vindas(self, interaction):
-        embed = discord.Embed(
-            title="👋 Mensagem de Boas-Vindas",
-            description="Digite a mensagem que será enviada quando um novo membro entrar.",
-            color=discord.Color.green()
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-        def check(msg):
-            return msg.author == interaction.user and msg.channel == interaction.channel
-
-        try:
-            msg = await self.bot.wait_for("message", timeout=30.0, check=check)
-            mensagem = msg.content.strip()
-
-            if str(interaction.guild.id) not in self.config:
-                self.config[str(interaction.guild.id)] = {}
-
-            self.config[str(interaction.guild.id)]["boas_vindas"] = mensagem
-            self.save_config()
-
-            await interaction.followup.send("✅ Mensagem de boas-vindas atualizada!", ephemeral=True)
-        except asyncio.TimeoutError:
-            await interaction.followup.send("⏰ Tempo esgotado! Tente novamente.", ephemeral=True)
-
-# Adicionar o cog
 async def setup(bot):
-    await bot.add_cog(BotConfig(bot))
+    await bot.add_cog(Configuracao(bot))
