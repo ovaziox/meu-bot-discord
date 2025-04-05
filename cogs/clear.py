@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from typing import Optional
 
 class ClearCog(commands.Cog):
     """Comando para limpar mensagens"""
@@ -7,12 +8,19 @@ class ClearCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.hybrid_command(name="clear", description="Apaga uma quantidade específica de mensagens")
+    @commands.hybrid_command(
+        name="clear",
+        description="Apaga mensagens do canal (opcionalmente de um usuário específico)"
+    )
     @commands.has_permissions(manage_messages=True)
-    async def clear(self, ctx: commands.Context, amount: int):
-        """Apaga uma quantidade específica de mensagens no canal"""
+    async def clear(
+        self,
+        ctx: commands.Context,
+        amount: int,
+        member: Optional[discord.Member] = None
+    ):
+        """Apaga mensagens (até 250) do canal, podendo filtrar por usuário"""
 
-        # Limite entre 1 e 250
         if amount < 1 or amount > 250:
             msg = "❌ O número de mensagens deve estar entre **1 e 250**!"
             if ctx.interaction:
@@ -24,28 +32,31 @@ class ClearCog(commands.Cog):
                 await ctx.reply(msg, delete_after=5)
             return
 
-        # Defer se for slash command
+        # Defer (necessário para slash commands)
         if ctx.interaction:
             try:
                 await ctx.interaction.response.defer(ephemeral=True)
             except discord.InteractionResponded:
-                pass  # Se já respondeu, ignora o erro
+                pass
 
-        # Deleta mensagens que não estão fixadas
-        deleted = await ctx.channel.purge(limit=amount, check=lambda m: not m.pinned)
+        # Define a função de filtro
+        def check(msg):
+            return not msg.pinned and (member is None or msg.author == member)
 
-        # Mensagem de confirmação
-        message = f"✅ **{len(deleted)} mensagens apagadas com sucesso!**"
+        # Executa a limpeza
+        await ctx.channel.purge(limit=amount, check=check)
 
-        # Envia mensagem dependendo do tipo de comando
+        # Confirmação sem número de mensagens
+        confirm_msg = "✅ Mensagens apagadas com sucesso!"
+
         try:
             if ctx.interaction:
-                await ctx.followup.send(message, ephemeral=True)
+                await ctx.followup.send(confirm_msg, ephemeral=True)
             else:
-                confirm_msg = await ctx.reply(message)
-                await confirm_msg.delete(delay=3)
+                msg = await ctx.reply(confirm_msg)
+                await msg.delete(delay=3)
         except Exception as e:
-            print(f"[ERRO] Falha ao enviar mensagem de confirmação: {e}")
+            print(f"[ERRO] Falha ao enviar confirmação: {e}")
 
     @clear.error
     async def clear_error(self, ctx, error):
