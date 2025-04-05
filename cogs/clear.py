@@ -19,17 +19,20 @@ class ClearCog(commands.Cog):
                 await ctx.reply("❌ O número de mensagens deve estar entre **1 e 1000**!", delete_after=5)
             return
 
+        # Defer para indicar que o bot está processando (obrigatório em slash)
+        if ctx.interaction:
+            await ctx.interaction.response.defer(ephemeral=True)
+
+        # Apagar as mensagens (evita fixadas)
         deleted = await ctx.channel.purge(limit=amount, check=lambda m: not m.pinned)
 
+        # Enviar confirmação
+        message = f"✅ **{len(deleted)} mensagens apagadas com sucesso!**"
+        
         if ctx.interaction:
-            # Slash command
-            await ctx.interaction.response.send_message(
-                f"✅ **{len(deleted)} mensagens apagadas com sucesso!**",
-                ephemeral=True
-            )
+            await ctx.followup.send(message, ephemeral=True)
         else:
-            # Prefix command
-            confirm_msg = await ctx.reply(f"✅ **{len(deleted)} mensagens apagadas com sucesso!**")
+            confirm_msg = await ctx.reply(message)
             await confirm_msg.delete(delay=3)
 
     @clear.error
