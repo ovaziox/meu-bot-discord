@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-PREFIX = "#"  # Prefixo dos comandos
+PREFIX = "#"  # Usado como fallback padrão

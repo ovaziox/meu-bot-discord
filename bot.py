@@ -1,39 +1,40 @@
 import discord
 from discord.ext import commands
-import config  # Importa configurações do bot
+import config
+import json
+import os
 import asyncio
 
-# Configuração dos intents do bot
-intents = discord.Intents.default()
-intents.message_content = True  # Necessário para comandos baseados em mensagens
-intents.guilds = True  # Permite que o bot veja servidores
-intents.members = True  # Para comandos de moderação
+intents = discord.Intents.all()
 
-# Define o bot com o prefixo configurado no config.py
-bot = commands.Bot(command_prefix=config.PREFIX, intents=intents)
+# Carrega os prefixos de prefixos.json
+def carregar_prefixos():
+    if not os.path.exists("prefixos.json"):
+        with open("prefixos.json", "w") as f:
+            json.dump({}, f)
+    with open("prefixos.json", "r") as f:
+        return json.load(f)
 
-# Evento chamado quando o bot fica online
-@bot.event
-async def on_ready():
-    # Sincroniza os comandos híbridos (incluindo slash commands)
-    await bot.tree.sync()  # Registra os comandos na árvore do Discord
-    print(f'✅ Bot conectado como {bot.user.name}')
+prefixos_por_servidor = carregar_prefixos()
 
-# Função para carregar todas as Cogs
-async def load_extensions():
-    initial_extensions = ["cogs.test", "cogs.ticket", "cogs.clear", "cogs.say", "cogs.configuracao"]  # Lista de Cogs
-    for extension in initial_extensions:
-        try:
-            await bot.load_extension(extension)
-            print(f"✅ Extensão {extension} carregada com sucesso.")
-        except Exception as e:
-            print(f"❌ Erro ao carregar {extension}: {e}")
+# Prefixo dinâmico
+async def get_prefix(bot, message):
+    if message.guild:
+        return prefixos_por_servidor.get(str(message.guild.id), config.PREFIX)
+    return config.PREFIX
 
-# Inicializa o bot assincronamente
+bot = commands.Bot(command_prefix=get_prefix, intents=intents)
+
+# Carrega os comandos (Cogs)
 async def main():
     async with bot:
-        await load_extensions()
+        for arquivo in os.listdir("./cogs"):
+            if arquivo.endswith(".py"):
+                try:
+                    await bot.load_extension(f"cogs.{arquivo[:-3]}")
+                    print(f"✅ Extensão cogs.{arquivo[:-3]} carregada com sucesso.")
+                except Exception as e:
+                    print(f"❌ Erro ao carregar cogs.{arquivo[:-3]}: {e}")
         await bot.start(config.TOKEN)
 
-# Executa a função assíncrona principal
 asyncio.run(main())
