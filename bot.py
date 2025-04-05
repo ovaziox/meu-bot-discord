@@ -24,7 +24,9 @@ bot = commands.Bot(command_prefix=get_prefix, intents=discord.Intents.all())
 
 @bot.event
 async def on_ready():
+    await bot.tree.sync()
     print(f"🤖 Bot online como {bot.user}")
+
     try:
         synced = await bot.tree.sync()
         print(f"🌐 {len(synced)} slash commands sincronizados.")
