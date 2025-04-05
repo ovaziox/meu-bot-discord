@@ -16,12 +16,30 @@ class ClearCog(commands.Cog):
     async def clear(
         self,
         ctx: commands.Context,
-        amount: int,
-        member: Optional[discord.Member] = None
+        quantidade: Optional[int] = None,
+        user: Optional[discord.Member] = None
     ):
         """Apaga mensagens (até 250) do canal, podendo filtrar por usuário"""
 
-        if amount < 1 or amount > 250:
+        # Se for prefixo, tenta extrair quantidade e user da mensagem manualmente
+        if not ctx.interaction:
+            args = ctx.message.content.split()
+            if quantidade is None:
+                if len(args) > 1:
+                    try:
+                        quantidade = int(args[1])
+                    except ValueError:
+                        await ctx.reply("❌ Especifique um número válido de mensagens!", delete_after=5)
+                        return
+                else:
+                    await ctx.reply("❌ Você precisa especificar a quantidade de mensagens!", delete_after=5)
+                    return
+
+            if user is None and len(ctx.message.mentions) > 0:
+                user = ctx.message.mentions[0]
+
+        # Verifica os limites
+        if quantidade is None or quantidade < 1 or quantidade > 250:
             msg = "❌ O número de mensagens deve estar entre **1 e 250**!"
             if ctx.interaction:
                 try:
@@ -32,23 +50,22 @@ class ClearCog(commands.Cog):
                 await ctx.reply(msg, delete_after=5)
             return
 
-        # Defer (necessário para slash commands)
+        # Defer para slash
         if ctx.interaction:
             try:
                 await ctx.interaction.response.defer(ephemeral=True)
             except discord.InteractionResponded:
                 pass
 
-        # Define a função de filtro
+        # Filtro de mensagens
         def check(msg):
-            return not msg.pinned and (member is None or msg.author == member)
+            return not msg.pinned and (user is None or msg.author == user)
 
-        # Executa a limpeza
-        await ctx.channel.purge(limit=amount, check=check)
+        # Executa limpeza
+        await ctx.channel.purge(limit=quantidade, check=check)
 
-        # Confirmação sem número de mensagens
+        # Confirmação
         confirm_msg = "✅ Mensagens apagadas com sucesso!"
-
         try:
             if ctx.interaction:
                 await ctx.followup.send(confirm_msg, ephemeral=True)
