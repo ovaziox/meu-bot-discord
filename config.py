@@ -1,7 +1,8 @@
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+if os.path.exists(".env"):
+    from dotenv import load_dotenv
+    load_dotenv()
 
-TOKEN = os.getenv("DISCORD_TOKEN")
-PREFIX = "#"  # Usado como fallback padrão
+TOKEN = os.environ["DISCORD_TOKEN"]
+PREFIX = "#"
