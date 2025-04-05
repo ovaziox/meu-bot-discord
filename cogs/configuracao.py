@@ -7,89 +7,75 @@ import os
 PREFIXO_PATH = "data/prefixos.json"
 CANAIS_PATH = "data/canais.json"
 
-def salvar_json(path, dados):
-    with open(path, "w") as f:
-        json.dump(dados, f, indent=4)
+def salvar_prefixo(guild_id, novo_prefixo):
+    with open(PREFIXO_PATH, "r") as f:
+        prefixos = json.load(f)
+    prefixos[str(guild_id)] = novo_prefixo
+    with open(PREFIXO_PATH, "w") as f:
+        json.dump(prefixos, f, indent=4)
 
-def carregar_json(path):
-    if not os.path.exists(path):
-        salvar_json(path, {})
-    with open(path, "r") as f:
-        return json.load(f)
+def salvar_canais(guild_id, canais_ids):
+    with open(CANAIS_PATH, "r") as f:
+        canais = json.load(f)
+    canais[str(guild_id)] = canais_ids
+    with open(CANAIS_PATH, "w") as f:
+        json.dump(canais, f, indent=4)
 
-class ConfigView(discord.ui.View):
+class ConfiguracaoView(discord.ui.View):
     def __init__(self, bot, guild):
         super().__init__(timeout=180)
         self.bot = bot
         self.guild = guild
 
-        # Menu de canais
-        self.add_item(ChannelSelect(bot, guild))
+        self.add_item(SelecionarCanais(bot, guild))
+        self.add_item(MudarPrefixo())
 
-        # Botão de mudar prefixo
-        self.add_item(ChangePrefixButton(bot, guild))
-
-class ChannelSelect(discord.ui.Select):
+class SelecionarCanais(discord.ui.Select):
     def __init__(self, bot, guild):
         self.bot = bot
         self.guild = guild
-        canais = [discord.SelectOption(label=canal.name, value=str(canal.id)) 
-                  for canal in guild.text_channels]
+
+        options = [
+            discord.SelectOption(
+                label=canal.name,
+                value=str(canal.id)
+            )
+            for canal in guild.text_channels
+        ]
 
         super().__init__(
-            placeholder="Selecione os canais permitidos para comandos",
+            placeholder="Selecione os canais permitidos...",
             min_values=1,
-            max_values=min(len(canais), 25),
-            options=canais
+            max_values=len(options),
+            options=options,
+            custom_id="select_canais"
         )
 
     async def callback(self, interaction: discord.Interaction):
-        canais_selecionados = self.values
-        canais_data = carregar_json(CANAIS_PATH)
-        canais_data[str(self.guild.id)] = canais_selecionados
-        salvar_json(CANAIS_PATH, canais_data)
-        nomes = [f"<#{cid}>" for cid in canais_selecionados]
-        await interaction.response.send_message(
-            f"✅ Comandos agora só funcionarão nos canais: {', '.join(nomes)}",
-            ephemeral=True
-        )
+        salvar_canais(self.guild.id, self.values)
+        canais_mention = ", ".join(f"<#{cid}>" for cid in self.values)
+        await interaction.response.send_message(f"✅ Canais permitidos atualizados: {canais_mention}", ephemeral=True)
 
-class ChangePrefixButton(discord.ui.Button):
-    def __init__(self, bot, guild):
-        super().__init__(label="Alterar Prefixo", style=discord.ButtonStyle.primary)
-        self.bot = bot
-        self.guild = guild
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(ChangePrefixModal(self.guild))
-
-class ChangePrefixModal(discord.ui.Modal, title="Alterar Prefixo"):
-    novo_prefixo = discord.ui.TextInput(label="Novo prefixo", max_length=5)
-
-    def __init__(self, guild):
-        super().__init__()
-        self.guild = guild
+class MudarPrefixo(discord.ui.Modal, title="Alterar Prefixo"):
+    novo_prefixo = discord.ui.TextInput(label="Novo prefixo", placeholder="#", max_length=5)
 
     async def on_submit(self, interaction: discord.Interaction):
-        prefixos = carregar_json(PREFIXO_PATH)
-        prefixos[str(self.guild.id)] = self.novo_prefixo.value
-        salvar_json(PREFIXO_PATH, prefixos)
-        await interaction.response.send_message(
-            f"✅ Prefixo alterado para `{self.novo_prefixo.value}` com sucesso!",
-            ephemeral=True
-        )
+        salvar_prefixo(interaction.guild.id, self.novo_prefixo.value)
+        await interaction.response.send_message(f"✅ Prefixo alterado para `{self.novo_prefixo.value}`", ephemeral=True)
 
 class Configuracao(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @commands.command(name="configuracao")
+    async def config_texto(self, ctx):
+        view = ConfiguracaoView(self.bot, ctx.guild)
+        await ctx.send("🔧 Painel de configuração:", view=view)
+
     @app_commands.command(name="configuracao", description="Abra o painel de configuração do bot")
-    async def configuracao_slash(self, interaction: discord.Interaction):
-        await interaction.response.send_message(
-            "⚙️ Painel de configuração:",
-            view=ConfigView(self.bot, interaction.guild),
-            ephemeral=True
-        )
+    async def config_slash(self, interaction: discord.Interaction):
+        view = ConfiguracaoView(self.bot, interaction.guild)
+        await interaction.response.send_message("🔧 Painel de configuração:", view=view, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Configuracao(bot))

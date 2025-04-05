@@ -8,16 +8,19 @@ from config import TOKEN  # Importa o token do config.py
 PREFIXO_PATH = "data/prefixos.json"
 
 
+from discord.ext import commands
+import json
+
 def get_prefix(bot, message):
     try:
-        with open(PREFIXO_PATH, "r") as f:
+        with open("data/prefixos.json", "r") as f:
             prefixos = json.load(f)
         return prefixos.get(str(message.guild.id), "#")
     except:
         return "#"
 
-intents = discord.Intents.all()
-bot = commands.Bot(command_prefix=get_prefix, intents=intents)
+bot = commands.Bot(command_prefix=get_prefix, intents=discord.Intents.all())
+
 
 @bot.event
 async def on_ready():
@@ -33,12 +36,13 @@ async def on_ready():
 
 async def carregar_cogs():
     for arquivo in os.listdir("cogs"):
-        if arquivo.endswith(".py") and not arquivo.startswith("__"):
+        if arquivo.endswith(".py") and not arquivo.startswith("__init__"):
             try:
                 await bot.load_extension(f"cogs.{arquivo[:-3]}")
                 print(f"✅ Extensão cogs.{arquivo[:-3]} carregada com sucesso.")
             except Exception as e:
                 print(f"❌ Erro ao carregar cogs.{arquivo[:-3]}: {e}")
+
 
 async def main():
     async with bot:
