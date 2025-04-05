@@ -24,15 +24,13 @@ bot = commands.Bot(command_prefix=get_prefix, intents=discord.Intents.all())
 
 @bot.event
 async def on_ready():
-    print(f"✅ Bot conectado como {bot.user}")
-    for guild in bot.guilds:
-        try:
-            with open(PREFIXO_PATH, "r") as f:
-                prefixos = json.load(f)
-            prefixo = prefixos.get(str(guild.id), "#")
-            print(f"🔧 Servidor: {guild.name} | Prefixo atual: {prefixo}")
-        except Exception as e:
-            print(f"Erro ao ler prefixo: {e}")
+    print(f"🤖 Bot online como {bot.user}")
+    try:
+        synced = await bot.tree.sync()
+        print(f"🌐 {len(synced)} slash commands sincronizados.")
+    except Exception as e:
+        print(f"Erro ao sincronizar comandos slash: {e}")
+
 
 async def carregar_cogs():
     for arquivo in os.listdir("cogs"):
