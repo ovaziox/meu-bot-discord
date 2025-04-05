@@ -12,36 +12,52 @@ class ClearCog(commands.Cog):
     async def clear(self, ctx: commands.Context, amount: int):
         """Apaga uma quantidade específica de mensagens no canal"""
 
-        if amount < 1 or amount > 1000:
+        # Limite entre 1 e 250
+        if amount < 1 or amount > 250:
+            msg = "❌ O número de mensagens deve estar entre **1 e 250**!"
             if ctx.interaction:
-                await ctx.interaction.response.send_message("❌ O número de mensagens deve estar entre **1 e 1000**!", ephemeral=True)
+                try:
+                    await ctx.interaction.response.send_message(msg, ephemeral=True)
+                except discord.InteractionResponded:
+                    await ctx.followup.send(msg, ephemeral=True)
             else:
-                await ctx.reply("❌ O número de mensagens deve estar entre **1 e 1000**!", delete_after=5)
+                await ctx.reply(msg, delete_after=5)
             return
 
-        # Defer para indicar que o bot está processando (obrigatório em slash)
+        # Defer se for slash command
         if ctx.interaction:
-            await ctx.interaction.response.defer(ephemeral=True)
+            try:
+                await ctx.interaction.response.defer(ephemeral=True)
+            except discord.InteractionResponded:
+                pass  # Se já respondeu, ignora o erro
 
-        # Apagar as mensagens (evita fixadas)
+        # Deleta mensagens que não estão fixadas
         deleted = await ctx.channel.purge(limit=amount, check=lambda m: not m.pinned)
 
-        # Enviar confirmação
+        # Mensagem de confirmação
         message = f"✅ **{len(deleted)} mensagens apagadas com sucesso!**"
-        
-        if ctx.interaction:
-            await ctx.followup.send(message, ephemeral=True)
-        else:
-            confirm_msg = await ctx.reply(message)
-            await confirm_msg.delete(delay=3)
+
+        # Envia mensagem dependendo do tipo de comando
+        try:
+            if ctx.interaction:
+                await ctx.followup.send(message, ephemeral=True)
+            else:
+                confirm_msg = await ctx.reply(message)
+                await confirm_msg.delete(delay=3)
+        except Exception as e:
+            print(f"[ERRO] Falha ao enviar mensagem de confirmação: {e}")
 
     @clear.error
     async def clear_error(self, ctx, error):
         if isinstance(error, commands.MissingPermissions):
+            msg = "❌ Você não tem permissão para usar esse comando!"
             if ctx.interaction:
-                await ctx.interaction.response.send_message("❌ Você não tem permissão para usar esse comando!", ephemeral=True)
+                try:
+                    await ctx.interaction.response.send_message(msg, ephemeral=True)
+                except discord.InteractionResponded:
+                    await ctx.followup.send(msg, ephemeral=True)
             else:
-                await ctx.reply("❌ Você não tem permissão para usar esse comando!", delete_after=5)
+                await ctx.reply(msg, delete_after=5)
 
 async def setup(bot):
     await bot.add_cog(ClearCog(bot))
